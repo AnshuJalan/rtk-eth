@@ -1,0 +1,50 @@
+Executing previous transactions from the block.
+Traces:
+  [2156789] 0x1111111111111111111111111111111111111111::swap(uint256,uint256,uint256,uint256)
+    ├─ [12543] 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa::getReserves() [STATICCALL]
+    │   └─ ← [Return] 10000000000000000000000, 500000000000000, 1776760000
+    ├─ [24567] 0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb::balanceOf(0x1111111111111111111111111111111111111111) [STATICCALL]
+    │   └─ ← [Return] 1000000000000000000
+    ├─ [24567] 0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb::balanceOf(0x1111111111111111111111111111111111111111) [STATICCALL]
+    │   └─ ← [Return] 1000000000000000000
+    ├─ [24567] 0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb::balanceOf(0x1111111111111111111111111111111111111111) [STATICCALL]
+    │   └─ ← [Return] 1000000000000000000
+    ├─ [24567] 0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb::balanceOf(0x1111111111111111111111111111111111111111) [STATICCALL]
+    │   └─ ← [Return] 1000000000000000000
+    ├─ [24567] 0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb::balanceOf(0x1111111111111111111111111111111111111111) [STATICCALL]
+    │   └─ ← [Return] 1000000000000000000
+    ├─ [24567] 0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb::balanceOf(0x1111111111111111111111111111111111111111) [STATICCALL]
+    │   └─ ← [Return] 1000000000000000000
+    ├─ [24567] 0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb::balanceOf(0x1111111111111111111111111111111111111111) [STATICCALL]
+    │   └─ ← [Return] 1000000000000000000
+    ├─ [24567] 0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb::balanceOf(0x1111111111111111111111111111111111111111) [STATICCALL]
+    │   └─ ← [Return] 1000000000000000000
+    ├─ [24567] 0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb::balanceOf(0x1111111111111111111111111111111111111111) [STATICCALL]
+    │   └─ ← [Return] 1000000000000000000
+    ├─ [24567] 0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb::balanceOf(0x1111111111111111111111111111111111111111) [STATICCALL]
+    │   └─ ← [Return] 1000000000000000000
+    ├─ [48291] 0xcccccccccccccccccccccccccccccccccccccccc::upgradeToAndCall(0xdddddddddddddddddddddddddddddddddddddddd, 0x) [CALL]
+    │   ├─ [38291] 0xdddddddddddddddddddddddddddddddddddddddd::upgradeToAndCall(0xdddddddddddddddddddddddddddddddddddddddd, 0x) [DELEGATECALL]
+    │   │   ├─ emit Upgraded(implementation: 0xdddddddddddddddddddddddddddddddddddddddd)
+    │   │   └─ ← [Return]
+    │   └─ ← [Return]
+    ├─ [52431] 0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee::transfer(0x2222222222222222222222222222222222222222, 1000000000000000000) [CALL]
+    │   ├─ [42431] 0xffffffffffffffffffffffffffffffffffffffff::transfer(0x2222222222222222222222222222222222222222, 1000000000000000000) [DELEGATECALL]
+    │   │   ├─ emit Transfer(from: 0x1111111111111111111111111111111111111111, to: 0x2222222222222222222222222222222222222222, value: 1000000000000000000)
+    │   │   └─ ← [Return] true
+    │   └─ ← [Return] true
+    ├─ [75342] 0x3333333333333333333333333333333333333333::multicall(bytes[]) [CALL]
+    │   ├─ [15234] 0x3333333333333333333333333333333333333333::swap(uint256,uint256,uint256) [DELEGATECALL]
+    │   │   └─ ← [Return] 500000000000000000
+    │   ├─ [15234] 0x3333333333333333333333333333333333333333::swap(uint256,uint256,uint256) [DELEGATECALL]
+    │   │   └─ ← [Return] 500000000000000000
+    │   ├─ [15234] 0x3333333333333333333333333333333333333333::swap(uint256,uint256,uint256) [DELEGATECALL]
+    │   │   └─ ← [Return] 500000000000000000
+    │   ├─ [15234] 0x3333333333333333333333333333333333333333::swap(uint256,uint256,uint256) [DELEGATECALL]
+    │   │   └─ ← [Return] 500000000000000000
+    │   └─ ← [Return] 0x
+    └─ ← [Stop]
+
+
+Transaction successfully executed.
+Gas used: 2156789

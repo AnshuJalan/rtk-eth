@@ -1,0 +1,24 @@
+
+blockHash            0xc4a8228a39414e88be5675aa87919c8d1ae44679488234feecfb88858ad07cac
+blockNumber          24927259
+from                 0xD4B9fB75AbE585B9bAB8c18da72C7E4beEF1308c
+transactionIndex     449
+effectiveGasPrice    379730655
+
+accessList           []
+chainId              1
+gasLimit             27300
+hash                 0xc520c8028b7da779c113140fc6c30dbef4c8696d9cad73eadb37ef06052c8021
+input                0x
+maxFeePerGas         703345112
+maxPriorityFeePerGas 150000
+nonce                0
+r                    0xa317f5a91276bf2b18e06f914650be3076f9d329f3d8dfdb09896a8ec9b24a4b
+s                    0x74ee6f8c280377565c639e99c0f6d426c8cd949cea68d26ee27066469ed67b3d
+to                   0x2CfF890f0378a11913B6129B2E97417a2c302680
+type                 2
+value                993000000000000
+yParity              0
+            
+blockTimestamp       1776762047
+
