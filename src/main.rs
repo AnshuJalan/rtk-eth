@@ -9,6 +9,7 @@ mod parser;
 // Re-export command modules for routing
 use cmds::cloud::{aws_cmd, container, curl_cmd, psql_cmd, wget_cmd};
 use cmds::dotnet::{binlog, dotnet_cmd, dotnet_format_report, dotnet_trx};
+use cmds::eth::cast as cast_cmd;
 use cmds::git::{diff_cmd, gh_cmd, git, gt_cmd};
 use cmds::go::{go_cmd, golangci_cmd};
 use cmds::js::{
@@ -271,6 +272,12 @@ enum Commands {
     Kubectl {
         #[command(subcommand)]
         command: KubectlCommands,
+    },
+
+    /// Foundry cast commands with compact output (receipt/tx/run/logs/block)
+    Cast {
+        #[command(subcommand)]
+        command: CastCommands,
     },
 
     /// Run command and show heuristic summary
@@ -899,6 +906,43 @@ enum ComposeCommands {
         service: Option<String>,
     },
     /// Passthrough: runs any unsupported compose subcommand directly
+    #[command(external_subcommand)]
+    Other(Vec<OsString>),
+}
+
+#[derive(Debug, Subcommand)]
+enum CastCommands {
+    /// Summarise a transaction receipt (drops logsBloom, decodes log topics)
+    Receipt {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// Summarise a transaction (drops signature, decodes input selector)
+    Tx {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// Compress a cast trace (collapses identical frames + proxy echo)
+    Run {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// Group log entries by block, decode common topic0 hashes
+    Logs {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// Compact block output (drops logsBloom/mixHash, summarises tx list)
+    Block {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// Compact block --full (per-tx one-liner with decoded selector)
+    BlockFull {
+        #[arg(trailing_var_arg = true, allow_hyphen_values = true)]
+        args: Vec<String>,
+    },
+    /// Passthrough: runs any unsupported cast subcommand directly
     #[command(external_subcommand)]
     Other(Vec<OsString>),
 }
@@ -1678,6 +1722,26 @@ fn run_cli() -> Result<i32> {
             KubectlCommands::Other(args) => container::run_kubectl_passthrough(&args, cli.verbose)?,
         },
 
+        Commands::Cast { command } => match command {
+            CastCommands::Receipt { args } => {
+                cast_cmd::run(cast_cmd::CastCmd::Receipt, &args, cli.verbose)?
+            }
+            CastCommands::Tx { args } => cast_cmd::run(cast_cmd::CastCmd::Tx, &args, cli.verbose)?,
+            CastCommands::Run { args } => {
+                cast_cmd::run(cast_cmd::CastCmd::Run, &args, cli.verbose)?
+            }
+            CastCommands::Logs { args } => {
+                cast_cmd::run(cast_cmd::CastCmd::Logs, &args, cli.verbose)?
+            }
+            CastCommands::Block { args } => {
+                cast_cmd::run(cast_cmd::CastCmd::Block, &args, cli.verbose)?
+            }
+            CastCommands::BlockFull { args } => {
+                cast_cmd::run(cast_cmd::CastCmd::BlockFull, &args, cli.verbose)?
+            }
+            CastCommands::Other(args) => cast_cmd::run_cast_passthrough(&args, cli.verbose)?,
+        },
+
         Commands::Summary { command } => {
             let cmd = command.join(" ");
             summary::run(&cmd, cli.verbose)?
@@ -2362,6 +2426,7 @@ fn is_operational_command(cmd: &Commands) -> bool {
             | Commands::Dotnet { .. }
             | Commands::Docker { .. }
             | Commands::Kubectl { .. }
+            | Commands::Cast { .. }
             | Commands::Summary { .. }
             | Commands::Grep { .. }
             | Commands::Wget { .. }
