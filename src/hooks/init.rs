@@ -190,7 +190,7 @@ rtk wget <url>          # Compact download output (65%)
 ### Ethereum / Foundry
 ```bash
 rtk cast receipt <tx>       # Drop logsBloom, decode log topics via `cast 4byte-event` (~75%)
-rtk cast tx <tx>            # Drop signature, decode input selector via `cast 4byte` (~64%)
+rtk cast tx <tx>            # Drop signature, decode input selector via `cast 4byte`; preserve to/value/nonce/gas/chainId (~24% simple transfer, higher with long calldata)
 rtk cast run <tx>           # Collapse identical frames + proxy echo (~16% mainnet avg, up to ~29% on proxy-heavy txs)
 rtk cast logs               # Group by block, decode topic0 via `cast 4byte-event` (~67%)
 rtk cast block <id>         # Drop logsBloom/mixHash, compact tx list (~96%)

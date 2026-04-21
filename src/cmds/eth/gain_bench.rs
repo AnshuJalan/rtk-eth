@@ -49,6 +49,16 @@ fn cast_gain_tx() {
     let filtered = tx::filter(raw);
     report("cast tx", raw, &filtered);
     assert!(filtered.len() <= raw.len(), "filter grew output");
+    // Critical fields an agent needs to debug a tx. Without these the
+    // output is worthless — the length-only check is not enough.
+    for key in ["chainId", "gasLimit", "to", "value", "input", "nonce", "hash"] {
+        assert!(
+            filtered.contains(key),
+            "filtered tx dropped `{}`:\n{}",
+            key,
+            filtered
+        );
+    }
 }
 
 #[test]

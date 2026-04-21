@@ -42,6 +42,19 @@ fn try_filter(raw: &str) -> Result<String, &'static str> {
         }
 
         if starts_with_key(trimmed, "accessList") {
+            // Detect inline empty form: `accessList           []` (Foundry's
+            // shape for any tx without storage keys, i.e. the vast majority).
+            // Skip the state-machine entirely so we don't swallow the fields
+            // that follow on subsequent lines.
+            let after_key = trimmed
+                .trim_start()
+                .trim_start_matches("accessList")
+                .trim_start();
+            let after_key = after_key.strip_prefix(':').unwrap_or(after_key).trim_start();
+            if after_key.starts_with("[]") {
+                out.push_str("accessList: [0 entries, 0 slots total]\n");
+                continue;
+            }
             in_access_list = true;
             access_entries = 0;
             access_total_slots = 0;
@@ -54,10 +67,8 @@ fn try_filter(raw: &str) -> Result<String, &'static str> {
 
         if in_access_list {
             let t = trimmed.trim();
-            // End of accessList: a blank line or a line that looks like a
-            // top-level key (no leading whitespace, contains a key-value form).
+            // End of accessList: a blank line.
             if t.is_empty() {
-                // assume end of access list
                 in_access_list = false;
                 if let Some(a) = access_addr_buf.take() {
                     access_entries += 1;
@@ -79,11 +90,35 @@ fn try_filter(raw: &str) -> Result<String, &'static str> {
                 }
                 access_addr_buf = Some(addr.trim().to_string());
                 access_slot_count = 0;
-            } else if t.starts_with("0x") && t.len() >= 66 {
-                // hex storage key
-                access_slot_count += 1;
+                continue;
             }
-            continue;
+            if t.starts_with("0x") && t.len() >= 66 {
+                access_slot_count += 1;
+                continue;
+            }
+            // A top-level field line (unindented, letter-initial, e.g.
+            // `chainId 1`) ends the access list. Finalize and fall through
+            // so this line gets processed normally — otherwise we'd swallow
+            // `chainId`/`gasLimit`/`to`/`value`/... on the common
+            // `accessList` → next-section shape without a blank separator.
+            let first = trimmed.as_bytes().first().copied();
+            let is_unindented_key =
+                !trimmed.starts_with(' ') && first.is_some_and(|b| b.is_ascii_alphabetic());
+            if is_unindented_key {
+                if let Some(a) = access_addr_buf.take() {
+                    access_entries += 1;
+                    access_total_slots += access_slot_count;
+                    append_access_entry(&mut out, &a, access_slot_count);
+                    access_slot_count = 0;
+                }
+                finalize_access_list(&mut out, access_entries, access_total_slots);
+                in_access_list = false;
+                // fall through — do NOT `continue`
+            } else {
+                // Unknown indented line inside the access list (storageKeys:
+                // header, `[`/`]` brackets, etc.) — skip silently.
+                continue;
+            }
         }
 
         if let Some(input) = trimmed.strip_prefix("input") {
@@ -212,6 +247,87 @@ mod tests {
         assert!(
             out.contains("transfer(address,uint256)"),
             "expected decoded selector, got:\n{out}"
+        );
+    }
+
+    #[test]
+    fn preserves_fields_after_inline_empty_accesslist() {
+        // Foundry emits `accessList           []` inline for any tx without
+        // storage keys. Before the fix, the state machine entered
+        // in_access_list mode and swallowed every subsequent field until a
+        // blank line — dropping `chainId`, `gasLimit`, `to`, `value`, `input`,
+        // etc. Regression guard for the exact shape from
+        // tests/fixtures/cast/tx_raw.txt.
+        let raw = concat!(
+            "accessList           []\n",
+            "chainId              1\n",
+            "gasLimit             27300\n",
+            "hash                 0xc520c8028b7da779c113140fc6c30dbef4c8696d9cad73eadb37ef06052c8021\n",
+            "input                0x\n",
+            "maxFeePerGas         703345112\n",
+            "maxPriorityFeePerGas 150000\n",
+            "nonce                0\n",
+            "to                   0x2CfF890f0378a11913B6129B2E97417a2c302680\n",
+            "type                 2\n",
+            "value                993000000000000\n",
+        );
+        let out = filter(raw);
+        for key in [
+            "chainId",
+            "gasLimit",
+            "hash",
+            "input",
+            "maxFeePerGas",
+            "maxPriorityFeePerGas",
+            "nonce",
+            "to",
+            "type",
+            "value",
+        ] {
+            assert!(
+                out.contains(key),
+                "field `{}` missing from filtered output:\n{}",
+                key,
+                out
+            );
+        }
+        // The inline `[]` form should still render the access-list summary.
+        assert!(
+            out.contains("accessList: [0 entries, 0 slots total]"),
+            "access-list summary missing:\n{}",
+            out
+        );
+    }
+
+    #[test]
+    fn preserves_fields_after_populated_accesslist() {
+        // Non-empty access list followed immediately by another top-level
+        // key (no blank separator). Before the fix, `chainId`/`to`/`value`
+        // would be swallowed by the state machine waiting for a blank line.
+        //
+        // Uses the `address:`-bare shape the existing parser recognises;
+        // Foundry's `- address:` shape for populated lists is a broader
+        // rework, out of scope for this bug fix.
+        let raw = concat!(
+            "accessList:\n",
+            "  address: 0xabababababababababababababababababababab\n",
+            "    storageKeys: [\n",
+            "      0x0000000000000000000000000000000000000000000000000000000000000001,\n",
+            "      0x0000000000000000000000000000000000000000000000000000000000000002\n",
+            "    ]\n",
+            "chainId              1\n",
+            "to                   0x2CfF890f0378a11913B6129B2E97417a2c302680\n",
+            "value                1000\n",
+        );
+        let out = filter(raw);
+        assert!(out.contains("chainId"), "chainId dropped:\n{}", out);
+        assert!(out.contains("to "), "to dropped:\n{}", out);
+        assert!(out.contains("value"), "value dropped:\n{}", out);
+        // Access-list summary renders with the entry count.
+        assert!(
+            out.contains("entries") && out.contains("slots total"),
+            "access-list summary missing:\n{}",
+            out
         );
     }
 
