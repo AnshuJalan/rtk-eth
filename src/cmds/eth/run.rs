@@ -27,13 +27,16 @@ lazy_static! {
     static ref TARGET_ADDR_RE: Regex =
         Regex::new(r"(0x[0-9a-fA-F]{40})::").expect("TARGET_ADDR_RE");
 
-    /// Extracts the function signature from a trace line body.
+    /// Extracts the function signature. Accepts an optional `{value: ...}`
+    /// decorator between the name and `(` (payable ether-sending calls like
+    /// `sendMessage{value: 10000}(args)`).
     static ref FN_SIG_RE: Regex =
-        Regex::new(r"::(\w+)\(").expect("FN_SIG_RE");
+        Regex::new(r"::(\w+)(?:\{[^}]*\})?\(").expect("FN_SIG_RE");
 
-    /// CALL / STATICCALL / DELEGATECALL marker.
+    /// Kind marker. Real Foundry output uses lowercase (`[delegatecall]`);
+    /// older traces and synthetic fixtures use uppercase. Match both.
     static ref CALL_KIND_RE: Regex =
-        Regex::new(r"\[(CALL|STATICCALL|DELEGATECALL|CREATE|CREATE2)\]")
+        Regex::new(r"(?i)\[(CALL|STATICCALL|DELEGATECALL|CREATE|CREATE2)\]")
             .expect("CALL_KIND_RE");
 }
 
@@ -128,32 +131,65 @@ fn try_filter(raw: &str) -> Result<String, &'static str> {
     Ok(out)
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum CallKind {
+    Call,
+    StaticCall,
+    DelegateCall,
+    Create,
+}
+
+/// Classify a trace line as a callable frame. Real Foundry output omits
+/// the `[CALL]` marker on plain calls (only shows `[gas]`) and uses
+/// lowercase kind markers for delegate/static/create. Any line with a
+/// `::fn(` signature counts as a callable frame; no explicit marker
+/// means implicit CALL.
+fn classify_call(line: &str) -> Option<CallKind> {
+    FN_SIG_RE.captures(line)?;
+    match CALL_KIND_RE
+        .captures(line)
+        .and_then(|c| c.get(1))
+        .map(|m| m.as_str().to_ascii_uppercase())
+    {
+        Some(k) if k == "DELEGATECALL" => Some(CallKind::DelegateCall),
+        Some(k) if k == "STATICCALL" => Some(CallKind::StaticCall),
+        Some(k) if k == "CREATE" || k == "CREATE2" => Some(CallKind::Create),
+        // Explicit [CALL] or no marker at all → plain CALL.
+        _ => Some(CallKind::Call),
+    }
+}
+
 fn is_proxy_echo(a: &str, b: &str) -> bool {
-    // Proxy echo: immediately-adjacent CALL/DELEGATECALL frames with the
-    // same function selector. Target addresses typically DIFFER for real
-    // EIP-1967 proxies (proxy ↔ implementation) but may match in synthetic
-    // tests — so we only require selector + kind-pair equality.
-    let a_sig = FN_SIG_RE.captures(a).and_then(|c| c.get(1));
-    let b_sig = FN_SIG_RE.captures(b).and_then(|c| c.get(1));
-    let a_kind = CALL_KIND_RE.captures(a).and_then(|c| c.get(1));
-    let b_kind = CALL_KIND_RE.captures(b).and_then(|c| c.get(1));
-
-    let (Some(asig), Some(bsig)) = (a_sig, b_sig) else {
+    // Proxy echo: immediately-adjacent frames with the same function name
+    // where the kind pair matches a proxy dispatch:
+    //   CALL       → DELEGATECALL  (EIP-1967 / standard proxy)
+    //   STATICCALL → DELEGATECALL  (view call forwarded via delegatecall)
+    // Target addresses typically differ for real proxies (proxy ↔ impl)
+    // but may match in synthetic fixtures — we only require name + kind.
+    let asig = FN_SIG_RE
+        .captures(a)
+        .and_then(|c| c.get(1))
+        .map(|m| m.as_str());
+    let bsig = FN_SIG_RE
+        .captures(b)
+        .and_then(|c| c.get(1))
+        .map(|m| m.as_str());
+    let (Some(asig), Some(bsig)) = (asig, bsig) else {
         return false;
     };
-    let (Some(ak), Some(bk)) = (a_kind, b_kind) else {
-        return false;
-    };
-
-    if asig.as_str() != bsig.as_str() {
+    if asig != bsig {
         return false;
     }
 
-    let k1 = ak.as_str();
-    let k2 = bk.as_str();
+    let (Some(ak), Some(bk)) = (classify_call(a), classify_call(b)) else {
+        return false;
+    };
+
     matches!(
-        (k1, k2),
-        ("CALL", "DELEGATECALL") | ("DELEGATECALL", "CALL") | ("STATICCALL", "DELEGATECALL")
+        (ak, bk),
+        (CallKind::Call, CallKind::DelegateCall)
+            | (CallKind::StaticCall, CallKind::DelegateCall)
+            | (CallKind::DelegateCall, CallKind::Call)
     )
 }
 
@@ -194,5 +230,39 @@ mod tests {
         let out = filter(raw);
         assert!(out.contains("(×3 pairs)"), "expected pair-collapse marker, got:\n{out}");
         assert!(out.len() < raw.len());
+    }
+
+    #[test]
+    fn detects_implicit_call_lowercase_delegatecall() {
+        // Real Foundry format: parent has no kind marker (implicit CALL),
+        // child has lowercase [delegatecall]. Same function name.
+        let raw = "    ├─ [112649] 0x2fa53896c7a4E310157152489f0887F052949666::execTransaction(0xaaa, 1000)\n    │   ├─ [107649] 0x29fcB43b46531BcA003ddC8FCB67FFE91900C762::execTransaction(0xaaa, 1000) [delegatecall]\n    │   │   └─ ← [Return] 0x1\n";
+        let out = filter(raw);
+        assert!(
+            out.contains("proxy delegatecall echoed"),
+            "implicit-CALL → [delegatecall] echo not detected:\n{out}"
+        );
+    }
+
+    #[test]
+    fn detects_echo_with_value_decorator() {
+        // Payable call with `{value: N}` between fn name and `(` must still
+        // have its selector extracted.
+        let raw = "    ├─ [66532] 0x56e51543785bb41f8f6244aaF09a410d2C22D9A4::sendMessage{value: 10000000000000000}((0, 0))\n    │   ├─ [61596] 0xB6662a4E54F50841d45623e00d91004401a3Fd26::sendMessage{value: 10000000000000000}((0, 0)) [delegatecall]\n    │   │   └─ ← [Return]\n";
+        let out = filter(raw);
+        assert!(
+            out.contains("proxy delegatecall echoed"),
+            "{{value:}} decorator echo not detected:\n{out}"
+        );
+    }
+
+    #[test]
+    fn detects_lowercase_staticcall_delegatecall() {
+        let raw = "    ├─ [7506] 0xe9711F58D4eA34c73D9892a59469ba2eff675E9C::resolve(123, 0xabc, true) [staticcall]\n    │   ├─ [2669] 0xefc92277E9166C27529CCD889143C6d4B6171595::resolve(123, 0xabc, true) [delegatecall]\n    │   │   └─ ← [Return] 0x1\n";
+        let out = filter(raw);
+        assert!(
+            out.contains("proxy delegatecall echoed"),
+            "[staticcall] → [delegatecall] echo not detected:\n{out}"
+        );
     }
 }

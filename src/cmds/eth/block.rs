@@ -9,13 +9,14 @@
 //! `--full` mode (transactions expanded as objects):
 //!   - keep the compressed header (same drops as default).
 //!   - for each transaction, emit a single line
-//!     `idx N: 0xfrom… → 0xto…  value=<decimal>  sel=<sig>` (selector from
-//!     [`super::selectors`]).
+//!     `idx N: 0xfrom… → 0xto…  value=<decimal>  sel=<sig>` (selector
+//!     decoded via [`super::fourbyte`] — shell-out to `cast 4byte`,
+//!     cached per invocation).
 //!
 //! `--full` is detected via the raw content (presence of expanded `hash:`
 //! objects) AND via the `--full` injection the dispatcher performs.
 
-use super::selectors;
+use super::fourbyte;
 
 const ALWAYS_DROP: &[&str] = &[
     "logsBloom",
@@ -38,6 +39,7 @@ pub fn filter(raw: &str) -> String {
 }
 
 fn try_filter(raw: &str) -> Result<String, &'static str> {
+    fourbyte::reset_cache();
     // Heuristic: a --full response contains per-tx objects whose `input`
     // field starts with `0x` and a `hash` line within a nested block. The
     // reliable signal is a `blockHash` line inside the transactions array.
@@ -116,8 +118,10 @@ fn emit_tx_summary(out: &mut String, txs: &[String]) {
         out.push_str("transactions: 0\n");
         return;
     }
-    let first = txs.first().map(|h| short_hash(h)).unwrap_or_default();
-    let last = txs.last().map(|h| short_hash(h)).unwrap_or_default();
+    // Tx hashes stay full so the agent can pipe them into the next
+    // `cast receipt`/`cast tx`/`cast run` without a second lookup.
+    let first = txs.first().map(|h| h.as_str()).unwrap_or_default();
+    let last = txs.last().map(|h| h.as_str()).unwrap_or_default();
     out.push_str(&format!(
         "transactions: {} (first: {} last: {})\n",
         txs.len(),
@@ -257,10 +261,11 @@ fn format_full_tx(tx: &FullTx, fallback_index: usize) -> String {
         .as_deref()
         .map(summarise_selector)
         .unwrap_or_default();
+    // Tx hash stays full — the agent pipes it into follow-up cast commands.
     let hash = tx
         .hash
         .as_deref()
-        .map(short_hash)
+        .map(|h| h.trim().to_string())
         .unwrap_or_else(|| format!("idx{}", fallback_index));
     format!("{} {} → {}  value={}{}", hash, from, to, value, sel_label)
 }
@@ -271,24 +276,10 @@ fn summarise_selector(input: &str) -> String {
         return String::new();
     }
     let sel_hex = &body[..8];
-    let Some(bytes) = parse_selector(sel_hex) else {
-        return format!("  sel=0x{}", sel_hex);
-    };
-    match selectors::lookup(bytes) {
+    match fourbyte::lookup_selector_hex(sel_hex) {
         Some(sig) => format!("  sel={}", sig),
         None => format!("  sel=0x{}", sel_hex),
     }
-}
-
-fn parse_selector(hex8: &str) -> Option<[u8; 4]> {
-    if hex8.len() != 8 {
-        return None;
-    }
-    let mut out = [0u8; 4];
-    for i in 0..4 {
-        out[i] = u8::from_str_radix(&hex8[i * 2..i * 2 + 2], 16).ok()?;
-    }
-    Some(out)
 }
 
 fn starts_with_key(line: &str, key: &str) -> bool {
@@ -364,10 +355,21 @@ mod tests {
 
     #[test]
     fn full_mode_per_tx_oneliner() {
+        // SAFETY: tests run sequentially; set_var is safe here since no
+        // other thread reads FOURBYTE_TEST_MOCK.
+        unsafe {
+            std::env::set_var(
+                "FOURBYTE_TEST_MOCK",
+                "0xa9059cbb=transfer(address,uint256)",
+            );
+        }
         // Real `cast block --full` output: each tx is a block of key-value
         // lines delimited by a leading `blockHash` field.
         let raw = "number              100\ntransactions:        [\n\tblockHash            0xabc\n\tblockNumber          100\n\tfrom                 0x1111111111111111111111111111111111111111\n\taccessList           []\n\thash                 0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa\n\tinput                0xa9059cbb000000000000000000000000333333333333333333333333333333333333333300000000000000000000000000000000000000000000000000000000000003e8\n\tto                   0x2222222222222222222222222222222222222222\n\tvalue                1000\n\tblockHash            0xabc\n\tblockNumber          100\n\tfrom                 0x4444444444444444444444444444444444444444\n\taccessList           []\n\thash                 0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb\n\tinput                0x\n\tto                   0x5555555555555555555555555555555555555555\n\tvalue                2000\n]\n";
         let out = filter(raw);
+        unsafe {
+            std::env::remove_var("FOURBYTE_TEST_MOCK");
+        }
         assert!(out.contains("[0]"), "missing [0] in: {}", out);
         assert!(out.contains("[1]"), "missing [1] in: {}", out);
         assert!(

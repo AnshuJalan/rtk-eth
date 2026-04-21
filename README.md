@@ -41,20 +41,22 @@ rtk filters and compresses command outputs before they reach your LLM context. S
 
 > **EXPERIMENTAL.** This is a fork of the upstream [rtk-ai/rtk](https://github.com/rtk-ai/rtk). It is not affiliated with upstream and may lag behind on releases. Use at your own risk; expect breakage around Foundry output format changes.
 
-This fork adds **six filters for Foundry's `cast` CLI**, compressing verbose Ethereum RPC output into scannable summaries with **58–97% token savings**.
+This fork adds **six filters for Foundry's `cast` CLI**, compressing verbose Ethereum RPC output into scannable summaries.
 
 ### Supported `cast` commands
 
-| Command | Savings | What it does |
-|---------|---------|--------------|
-| `rtk cast receipt <tx>` | ~81% | Drops `logsBloom`, decodes log `topic0` via bundled event-signature table |
-| `rtk cast tx <tx>` | ~64% | Drops `r`/`s`/`v`/`yParity`, decodes `input` selector, compacts `accessList` |
-| `rtk cast run <tx>` | 58–77% | Collapses identical/repeated trace frames, detects EIP-1967 proxy delegatecall echoes |
-| `rtk cast logs ...` | ~75% | Groups log entries by block, decodes event `topic0`, truncates long `data` fields |
-| `rtk cast block <id>` | ~96% | Drops `logsBloom`/`mixHash`, summarises tx list as count + first/last hash |
-| `rtk cast block <id> --full` | ~93% | Full header + per-tx one-liner with decoded function selector |
+Savings measured against real mainnet fixtures (`cargo test --release cast_gain`). `cast run` varies with trace shape — proxy-heavy traces collapse more than simple swaps.
 
-Passthrough is triggered automatically for `--json`, `--raw`, `-vvvv`, and non-TTY stdout — JSON integrations and deep debug traces are never truncated.
+| Command                      | Savings                                                                                          | What it does                                                                          |
+| ---------------------------- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------- |
+| `rtk cast receipt <tx>`      | ~75%                                                                                             | Drops `logsBloom`, decodes log `topic0` on-demand via `cast 4byte-event`              |
+| `rtk cast tx <tx>`           | ~64%                                                                                             | Drops `r`/`s`/`v`/`yParity`, decodes `input` selector via `cast 4byte`, compacts `accessList` |
+| `rtk cast run <tx>`          | ~16% mainnet avg (up to ~29% on proxy-heavy txs like 1inch/Aave V3 routing; ~58% on the fixture) | Collapses identical/repeated trace frames, detects EIP-1967 proxy delegatecall echoes |
+| `rtk cast logs ...`          | ~67%                                                                                             | Groups log entries by block, decodes event `topic0` via `cast 4byte-event`, truncates long `data` fields |
+| `rtk cast block <id>`        | ~96%                                                                                             | Drops `logsBloom`/`mixHash`, summarises tx list as count + first/last hash            |
+| `rtk cast block <id> --full` | ~90%                                                                                             | Full header + per-tx one-liner with selector decoded via `cast 4byte`                 |
+
+`cast run` mainnet reference: 15 contract-call txs from block 24,928,780 measured aggregate 15.8% byte reduction, with individual tx savings ranging 0% (simple swaps) to 28.7% (proxy-heavy multi-hop).
 
 ### Please disable telemetry on this fork
 
@@ -79,21 +81,21 @@ Issues and PRs for cast-specific behaviour: [AnshuJalan/rtk/issues](https://gith
 
 ## Token Savings (30-min Claude Code Session)
 
-| Operation | Frequency | Standard | rtk | Savings |
-|-----------|-----------|----------|-----|---------|
-| `ls` / `tree` | 10x | 2,000 | 400 | -80% |
-| `cat` / `read` | 20x | 40,000 | 12,000 | -70% |
-| `grep` / `rg` | 8x | 16,000 | 3,200 | -80% |
-| `git status` | 10x | 3,000 | 600 | -80% |
-| `git diff` | 5x | 10,000 | 2,500 | -75% |
-| `git log` | 5x | 2,500 | 500 | -80% |
-| `git add/commit/push` | 8x | 1,600 | 120 | -92% |
-| `cargo test` / `npm test` | 5x | 25,000 | 2,500 | -90% |
-| `ruff check` | 3x | 3,000 | 600 | -80% |
-| `pytest` | 4x | 8,000 | 800 | -90% |
-| `go test` | 3x | 6,000 | 600 | -90% |
-| `docker ps` | 3x | 900 | 180 | -80% |
-| **Total** | | **~118,000** | **~23,900** | **-80%** |
+| Operation                 | Frequency | Standard     | rtk         | Savings  |
+| ------------------------- | --------- | ------------ | ----------- | -------- |
+| `ls` / `tree`             | 10x       | 2,000        | 400         | -80%     |
+| `cat` / `read`            | 20x       | 40,000       | 12,000      | -70%     |
+| `grep` / `rg`             | 8x        | 16,000       | 3,200       | -80%     |
+| `git status`              | 10x       | 3,000        | 600         | -80%     |
+| `git diff`                | 5x        | 10,000       | 2,500       | -75%     |
+| `git log`                 | 5x        | 2,500        | 500         | -80%     |
+| `git add/commit/push`     | 8x        | 1,600        | 120         | -92%     |
+| `cargo test` / `npm test` | 5x        | 25,000       | 2,500       | -90%     |
+| `ruff check`              | 3x        | 3,000        | 600         | -80%     |
+| `pytest`                  | 4x        | 8,000        | 800         | -90%     |
+| `go test`                 | 3x        | 6,000        | 600         | -90%     |
+| `docker ps`               | 3x        | 900          | 180         | -80%     |
+| **Total**                 |           | **~118,000** | **~23,900** | **-80%** |
 
 > Estimates based on medium-sized TypeScript/Rust projects. Actual savings vary by project size.
 
@@ -112,6 +114,7 @@ curl -fsSL https://raw.githubusercontent.com/rtk-ai/rtk/refs/heads/master/instal
 ```
 
 > Installs to `~/.local/bin`. Add to PATH if needed:
+>
 > ```bash
 > echo 'export PATH="$HOME/.local/bin:$PATH"' >> ~/.bashrc  # or ~/.zshrc
 > ```
@@ -125,6 +128,7 @@ cargo install --git https://github.com/rtk-ai/rtk
 ### Pre-built Binaries
 
 Download from [releases](https://github.com/rtk-ai/rtk/releases):
+
 - macOS: `rtk-x86_64-apple-darwin.tar.gz` / `rtk-aarch64-apple-darwin.tar.gz`
 - Linux: `rtk-x86_64-unknown-linux-musl.tar.gz` / `rtk-aarch64-unknown-linux-gnu.tar.gz`
 - Windows: `rtk-x86_64-pc-windows-msvc.zip`
@@ -182,6 +186,7 @@ Four strategies applied per command type:
 ## Commands
 
 ### Files
+
 ```bash
 rtk ls .                        # Token-optimized directory tree
 rtk read file.rs                # Smart file reading
@@ -193,6 +198,7 @@ rtk diff file1 file2            # Condensed diff
 ```
 
 ### Git
+
 ```bash
 rtk git status                  # Compact status
 rtk git log -n 10               # One-line commits
@@ -204,6 +210,7 @@ rtk git pull                    # -> "ok 3 files +10 -2"
 ```
 
 ### GitHub CLI
+
 ```bash
 rtk gh pr list                  # Compact PR listing
 rtk gh pr view 42               # PR details + checks
@@ -212,6 +219,7 @@ rtk gh run list                 # Workflow run status
 ```
 
 ### Test Runners
+
 ```bash
 rtk jest                        # Jest compact (failures only)
 rtk vitest                      # Vitest compact (failures only)
@@ -226,6 +234,7 @@ rtk test <cmd>                  # Generic test wrapper - failures only (-90%)
 ```
 
 ### Build & Lint
+
 ```bash
 rtk lint                        # ESLint grouped by rule/file
 rtk lint biome                  # Supports other linters
@@ -240,6 +249,7 @@ rtk rubocop                     # Ruby linting (JSON, -60%+)
 ```
 
 ### Package Managers
+
 ```bash
 rtk pnpm list                   # Compact dependency tree
 rtk pip list                    # Python packages (auto-detect uv)
@@ -249,6 +259,7 @@ rtk prisma generate             # Schema generation (no ASCII art)
 ```
 
 ### AWS
+
 ```bash
 rtk aws sts get-caller-identity # One-line identity
 rtk aws ec2 describe-instances  # Compact instance list
@@ -261,6 +272,7 @@ rtk aws s3 ls                   # Truncated with tee recovery
 ```
 
 ### Containers
+
 ```bash
 rtk docker ps                   # Compact container list
 rtk docker images               # Compact image list
@@ -272,6 +284,7 @@ rtk kubectl services            # Compact service list
 ```
 
 ### Data & Analytics
+
 ```bash
 rtk json config.json            # Structure without values
 rtk deps                        # Dependencies summary
@@ -284,6 +297,7 @@ rtk proxy <command>             # Raw passthrough + tracking
 ```
 
 ### Token Savings Analytics
+
 ```bash
 rtk gain                        # Summary stats
 rtk gain --graph                # ASCII graph (last 30 days)
@@ -307,6 +321,7 @@ rtk session                     # Show RTK adoption across recent sessions
 ## Examples
 
 **Directory listing:**
+
 ```
 # ls -la (45 lines, ~800 tokens)        # rtk ls (12 lines, ~150 tokens)
 drwxr-xr-x  15 user staff 480 ...       my-project/
@@ -316,6 +331,7 @@ drwxr-xr-x  15 user staff 480 ...       my-project/
 ```
 
 **Git operations:**
+
 ```
 # git push (15 lines, ~200 tokens)       # rtk git push (1 line, ~10 tokens)
 Enumerating objects: 5, done.             ok main
@@ -325,6 +341,7 @@ Delta compression using up to 8 threads
 ```
 
 **Test output:**
+
 ```
 # cargo test (200+ lines on failure)     # rtk test cargo test (~20 lines)
 running 15 tests                          FAILED: 2/15 tests
@@ -383,32 +400,32 @@ rtk git status
 
 **Important**: Do not double-click `rtk.exe` — it is a CLI tool that prints usage and exits immediately. Always run it from a terminal (Command Prompt, PowerShell, or Windows Terminal).
 
-| Feature | WSL | Native Windows |
-|---------|-----|----------------|
-| Filters (cargo, git, etc.) | Full | Full |
-| Auto-rewrite hook | Yes | No (CLAUDE.md fallback) |
-| `rtk init -g` | Hook mode | CLAUDE.md mode |
-| `rtk gain` / analytics | Full | Full |
+| Feature                    | WSL       | Native Windows          |
+| -------------------------- | --------- | ----------------------- |
+| Filters (cargo, git, etc.) | Full      | Full                    |
+| Auto-rewrite hook          | Yes       | No (CLAUDE.md fallback) |
+| `rtk init -g`              | Hook mode | CLAUDE.md mode          |
+| `rtk gain` / analytics     | Full      | Full                    |
 
 ## Supported AI Tools
 
 RTK supports 12 AI coding tools. Each integration transparently rewrites shell commands to `rtk` equivalents for 60-90% token savings.
 
-| Tool | Install | Method |
-|------|---------|--------|
-| **Claude Code** | `rtk init -g` | PreToolUse hook (bash) |
-| **GitHub Copilot (VS Code)** | `rtk init -g --copilot` | PreToolUse hook — transparent rewrite |
-| **GitHub Copilot CLI** | `rtk init -g --copilot` | PreToolUse deny-with-suggestion (CLI limitation) |
-| **Cursor** | `rtk init -g --agent cursor` | preToolUse hook (hooks.json) |
-| **Gemini CLI** | `rtk init -g --gemini` | BeforeTool hook |
-| **Codex** | `rtk init -g --codex` | AGENTS.md + RTK.md instructions |
-| **Windsurf** | `rtk init --agent windsurf` | .windsurfrules (project-scoped) |
-| **Cline / Roo Code** | `rtk init --agent cline` | .clinerules (project-scoped) |
-| **OpenCode** | `rtk init -g --opencode` | Plugin TS (tool.execute.before) |
-| **OpenClaw** | `openclaw plugins install ./openclaw` | Plugin TS (before_tool_call) |
-| **Mistral Vibe** | Planned ([#800](https://github.com/rtk-ai/rtk/issues/800)) | Blocked on upstream |
-| **Kilo Code** | `rtk init --agent kilocode` | .kilocode/rules/rtk-rules.md (project-scoped) |
-| **Google Antigravity** | `rtk init --agent antigravity` | .agents/rules/antigravity-rtk-rules.md (project-scoped) |
+| Tool                         | Install                                                    | Method                                                  |
+| ---------------------------- | ---------------------------------------------------------- | ------------------------------------------------------- |
+| **Claude Code**              | `rtk init -g`                                              | PreToolUse hook (bash)                                  |
+| **GitHub Copilot (VS Code)** | `rtk init -g --copilot`                                    | PreToolUse hook — transparent rewrite                   |
+| **GitHub Copilot CLI**       | `rtk init -g --copilot`                                    | PreToolUse deny-with-suggestion (CLI limitation)        |
+| **Cursor**                   | `rtk init -g --agent cursor`                               | preToolUse hook (hooks.json)                            |
+| **Gemini CLI**               | `rtk init -g --gemini`                                     | BeforeTool hook                                         |
+| **Codex**                    | `rtk init -g --codex`                                      | AGENTS.md + RTK.md instructions                         |
+| **Windsurf**                 | `rtk init --agent windsurf`                                | .windsurfrules (project-scoped)                         |
+| **Cline / Roo Code**         | `rtk init --agent cline`                                   | .clinerules (project-scoped)                            |
+| **OpenCode**                 | `rtk init -g --opencode`                                   | Plugin TS (tool.execute.before)                         |
+| **OpenClaw**                 | `openclaw plugins install ./openclaw`                      | Plugin TS (before_tool_call)                            |
+| **Mistral Vibe**             | Planned ([#800](https://github.com/rtk-ai/rtk/issues/800)) | Blocked on upstream                                     |
+| **Kilo Code**                | `rtk init --agent kilocode`                                | .kilocode/rules/rtk-rules.md (project-scoped)           |
+| **Google Antigravity**       | `rtk init --agent antigravity`                             | .agents/rules/antigravity-rtk-rules.md (project-scoped) |
 
 For per-agent setup details, override controls, and graceful degradation, see the [Supported Agents guide](https://www.rtk-ai.app/guide/getting-started/supported-agents).
 
@@ -456,24 +473,25 @@ RTK can collect **anonymous, aggregate usage metrics** once per day. Telemetry i
 
 **What is collected and why:**
 
-| Category | Data | Why |
-|----------|------|-----|
-| Identity | Salted device hash (SHA-256, not reversible) | Count unique installations without tracking individuals |
-| Environment | RTK version, OS, architecture, install method | Know which platforms to support and test |
-| Usage volume | Command count (24h), total commands, tokens saved (24h/30d/total) | Measure adoption and value delivered |
-| Quality | Top 5 passthrough commands (0% savings), parse failure count, commands with <30% savings | Identify missing filters and weak ones to improve |
-| Ecosystem | Command category distribution (e.g. git 45%, cargo 20%, js 15%) | Prioritize filter development for popular ecosystems |
-| Retention | Days since first use, active days in last 30 | Understand engagement and detect churn |
-| Adoption | AI agent hook type (claude/gemini/codex), custom TOML filter count | Track integration coverage and DSL adoption |
-| Configuration | Whether config.toml exists, number of excluded commands, project count | Understand user maturity and customization patterns |
-| Features | Usage counts for meta-commands (gain, discover, proxy, verify) | Know which RTK features are valued vs unused |
-| Economics | Estimated USD savings (based on API token pricing) | Quantify the value RTK provides to users |
+| Category      | Data                                                                                     | Why                                                     |
+| ------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------- |
+| Identity      | Salted device hash (SHA-256, not reversible)                                             | Count unique installations without tracking individuals |
+| Environment   | RTK version, OS, architecture, install method                                            | Know which platforms to support and test                |
+| Usage volume  | Command count (24h), total commands, tokens saved (24h/30d/total)                        | Measure adoption and value delivered                    |
+| Quality       | Top 5 passthrough commands (0% savings), parse failure count, commands with <30% savings | Identify missing filters and weak ones to improve       |
+| Ecosystem     | Command category distribution (e.g. git 45%, cargo 20%, js 15%)                          | Prioritize filter development for popular ecosystems    |
+| Retention     | Days since first use, active days in last 30                                             | Understand engagement and detect churn                  |
+| Adoption      | AI agent hook type (claude/gemini/codex), custom TOML filter count                       | Track integration coverage and DSL adoption             |
+| Configuration | Whether config.toml exists, number of excluded commands, project count                   | Understand user maturity and customization patterns     |
+| Features      | Usage counts for meta-commands (gain, discover, proxy, verify)                           | Know which RTK features are valued vs unused            |
+| Economics     | Estimated USD savings (based on API token pricing)                                       | Quantify the value RTK provides to users                |
 
 All data is **aggregate counts or anonymized command names** (first 3 words, no arguments). Top commands report only tool names (e.g. "git", "cargo"), never full command lines.
 
 **What is NOT collected:** source code, file paths, command arguments, secrets, environment variables, personal data, or repository contents.
 
 **Manage telemetry:**
+
 ```bash
 rtk telemetry status     # Check current consent state
 rtk telemetry enable     # Give consent (interactive prompt)
@@ -482,6 +500,7 @@ rtk telemetry forget     # Withdraw consent + delete all local data + request se
 ```
 
 **Override via environment:**
+
 ```bash
 export RTK_TELEMETRY_DISABLED=1   # Blocks telemetry regardless of consent
 ```

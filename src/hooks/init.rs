@@ -187,14 +187,14 @@ rtk curl <url>          # Compact HTTP responses (70%)
 rtk wget <url>          # Compact download output (65%)
 ```
 
-### Ethereum / Foundry (58-97% savings)
+### Ethereum / Foundry
 ```bash
-rtk cast receipt <tx>       # Drop logsBloom, decode log topics (81%)
-rtk cast tx <tx>            # Drop signature, decode input selector (64%)
-rtk cast run <tx>           # Collapse identical trace frames + proxy echo (58-77%)
-rtk cast logs               # Group by block, decode topic0 (75%)
-rtk cast block <id>         # Drop logsBloom/mixHash, compact tx list (96%)
-rtk cast block <id> --full  # Per-tx one-liner with decoded selector (93%)
+rtk cast receipt <tx>       # Drop logsBloom, decode log topics via `cast 4byte-event` (~75%)
+rtk cast tx <tx>            # Drop signature, decode input selector via `cast 4byte` (~64%)
+rtk cast run <tx>           # Collapse identical frames + proxy echo (~16% mainnet avg, up to ~29% on proxy-heavy txs)
+rtk cast logs               # Group by block, decode topic0 via `cast 4byte-event` (~67%)
+rtk cast block <id>         # Drop logsBloom/mixHash, compact tx list (~96%)
+rtk cast block <id> --full  # Per-tx one-liner with selector decoded via `cast 4byte` (~90%)
 ```
 
 Note: `--json`, `--raw`, `-vvvv` flags and non-TTY stdout trigger passthrough (no filtering), so JSON integrations and deep debug traces are never truncated.
@@ -221,7 +221,7 @@ rtk init --global       # Add RTK to ~/.claude/CLAUDE.md
 | Files | ls, read, grep, find | 60-75% |
 | Infrastructure | docker, kubectl | 85% |
 | Network | curl, wget | 65-70% |
-| Ethereum | cast receipt, tx, run, logs, block | 58-97% |
+| Ethereum | cast receipt, tx, run, logs, block | ~16-96% (cast run varies with trace shape) |
 
 Overall average: **60-90% token reduction** on common development operations.
 <!-- /rtk-instructions -->

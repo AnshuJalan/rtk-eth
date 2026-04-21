@@ -2,15 +2,13 @@
 //!
 //! Strategy (report §3.2): drop `r`/`s`/`v`/`yParity` signature fields
 //! (agent can't verify without the private key anyway), decode the
-//! `input` field's 4-byte selector via [`super::selectors`], compact
-//! `accessList` entries, and truncate long calldata while preserving the
-//! selector so the agent still knows what was called.
+//! `input` field's 4-byte selector via [`super::fourbyte`] (shell-out
+//! to `cast 4byte`, cached per invocation), compact `accessList`
+//! entries, and preserve the full calldata so the agent can actually
+//! read the call arguments — reading calldata is the primary reason to
+//! run `cast tx`.
 
-use super::selectors;
-
-const CALLDATA_HEAD: usize = 18; // includes 0x + 4-byte selector + 8 more hex chars
-const CALLDATA_TAIL: usize = 14;
-const CALLDATA_THRESHOLD: usize = 82;
+use super::fourbyte;
 
 pub fn filter(raw: &str) -> String {
     let stripped = crate::core::utils::strip_ansi(raw);
@@ -24,6 +22,7 @@ pub fn filter(raw: &str) -> String {
 }
 
 fn try_filter(raw: &str) -> Result<String, &'static str> {
+    fourbyte::reset_cache();
     let mut out = String::with_capacity(raw.len() / 2);
     let mut in_access_list = false;
     let mut access_entries = 0usize;
@@ -148,22 +147,8 @@ fn summarise_input(value: &str) -> String {
         return v.to_string();
     }
     let sel_hex = &body[..8];
-    let Some(bytes) = parse_selector(sel_hex) else {
-        return compact_calldata(v, None);
-    };
-    let decoded = selectors::lookup(bytes);
-    compact_calldata(v, decoded)
-}
-
-fn parse_selector(hex8: &str) -> Option<[u8; 4]> {
-    if hex8.len() != 8 {
-        return None;
-    }
-    let mut out = [0u8; 4];
-    for i in 0..4 {
-        out[i] = u8::from_str_radix(&hex8[i * 2..i * 2 + 2], 16).ok()?;
-    }
-    Some(out)
+    let decoded = fourbyte::lookup_selector_hex(sel_hex);
+    compact_calldata(v, decoded.as_deref())
 }
 
 fn compact_calldata(hex: &str, decoded: Option<&str>) -> String {
@@ -171,17 +156,10 @@ fn compact_calldata(hex: &str, decoded: Option<&str>) -> String {
         Some(sig) => format!("0x{} [{}]", &hex[2..10], sig),
         None => format!("0x{}", &hex[2..10]),
     };
-    if hex.len() <= CALLDATA_THRESHOLD {
-        return format!("{} {}", label, &hex[10..]);
+    if hex.len() <= 10 {
+        return label;
     }
-    let byte_len = (hex.len() - 2) / 2;
-    format!(
-        "{} {}…{} ({} bytes)",
-        label,
-        &hex[10..10 + CALLDATA_HEAD.min(hex.len() - 10)],
-        &hex[hex.len() - CALLDATA_TAIL..],
-        byte_len
-    )
+    format!("{} {}", label, &hex[10..])
 }
 
 fn starts_with_key(line: &str, key: &str) -> bool {
@@ -218,8 +196,40 @@ mod tests {
 
     #[test]
     fn decodes_known_selector() {
+        // SAFETY: tests run sequentially; set_var is safe here since no
+        // other thread reads FOURBYTE_TEST_MOCK.
+        unsafe {
+            std::env::set_var(
+                "FOURBYTE_TEST_MOCK",
+                "0xa9059cbb=transfer(address,uint256)",
+            );
+        }
         let raw = "input                0xa9059cbb0000000000000000000000001111111111111111111111111111111111111111000000000000000000000000000000000000000000000000016345785d8a0000\n";
         let out = filter(raw);
-        assert!(out.contains("transfer(address,uint256)"));
+        unsafe {
+            std::env::remove_var("FOURBYTE_TEST_MOCK");
+        }
+        assert!(
+            out.contains("transfer(address,uint256)"),
+            "expected decoded selector, got:\n{out}"
+        );
+    }
+
+    #[test]
+    fn preserves_full_calldata_args() {
+        // Reading calldata is the primary value of `cast tx` — the args
+        // after the selector must survive the filter verbatim.
+        let raw = "input                0xa9059cbb0000000000000000000000001111111111111111111111111111111111111111000000000000000000000000000000000000000000000000016345785d8a0000\n";
+        let out = filter(raw);
+        assert!(
+            out.contains("0000000000000000000000001111111111111111111111111111111111111111"),
+            "address arg dropped from calldata: {}",
+            out
+        );
+        assert!(
+            out.contains("000000000000000000000000000000000000000000000000016345785d8a0000"),
+            "value arg dropped from calldata: {}",
+            out
+        );
     }
 }
