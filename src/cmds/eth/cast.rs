@@ -10,7 +10,6 @@ use crate::core::runner::{self, RunOptions};
 use crate::core::utils::resolved_command;
 use anyhow::Result;
 use std::ffi::OsString;
-use std::io::IsTerminal;
 
 use super::{block, logs, receipt, run as run_trace, tx};
 
@@ -115,7 +114,11 @@ fn run_cast_passthrough_with_sub(sub: &str, args: &[String], verbose: u8) -> Res
 /// Triggers:
 /// - machine-readable flags: `--json`, `-j`, `--md`, `--raw`, `--rawbytes`
 /// - high-verbosity traces (`-vvvv` or more) for `cast run`
-/// - non-TTY stdout (piped/redirected) — downstream likely consumes raw output
+///
+/// Note: TTY detection is deliberately NOT used — agents (Claude Code,
+/// Copilot, etc.) always invoke rtk through a pipe, which is precisely the
+/// case where filtering matters most. Users who need raw bytes for piping
+/// into jq/awk should use one of the explicit flags above.
 fn should_passthrough(args: &[String]) -> bool {
     for a in args {
         match a.as_str() {
@@ -124,7 +127,7 @@ fn should_passthrough(args: &[String]) -> bool {
             _ => {}
         }
     }
-    !std::io::stdout().is_terminal()
+    false
 }
 
 /// Foundry accepts `-v`, `-vv`, `-vvv`, `-vvvv`, `-vvvvv`. Treat 4+ as
