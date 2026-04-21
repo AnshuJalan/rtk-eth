@@ -39,6 +39,7 @@ pub fn category_avg_tokens(category: &str, subcmd: &str) -> usize {
         "Network" => 150,
         "GitHub" => 200,
         "PackageManager" => 150,
+        "Ethereum" => 800,
         _ => 150,
     }
 }

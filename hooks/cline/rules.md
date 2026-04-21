@@ -16,6 +16,8 @@ rtk grep "pattern" src/
 rtk find "*.rs" .
 rtk docker ps
 rtk gh pr list
+rtk cast receipt <tx>     # Foundry cast with compact output
+rtk cast run <tx>         # Collapsed transaction trace
 ```
 
 ## Meta Commands

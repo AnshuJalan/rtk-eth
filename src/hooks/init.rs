@@ -187,6 +187,18 @@ rtk curl <url>          # Compact HTTP responses (70%)
 rtk wget <url>          # Compact download output (65%)
 ```
 
+### Ethereum / Foundry (58-97% savings)
+```bash
+rtk cast receipt <tx>       # Drop logsBloom, decode log topics (81%)
+rtk cast tx <tx>            # Drop signature, decode input selector (64%)
+rtk cast run <tx>           # Collapse identical trace frames + proxy echo (58-77%)
+rtk cast logs               # Group by block, decode topic0 (75%)
+rtk cast block <id>         # Drop logsBloom/mixHash, compact tx list (96%)
+rtk cast block <id> --full  # Per-tx one-liner with decoded selector (93%)
+```
+
+Note: `--json`, `--raw`, `-vvvv` flags and non-TTY stdout trigger passthrough (no filtering), so JSON integrations and deep debug traces are never truncated.
+
 ### Meta Commands
 ```bash
 rtk gain                # View token savings statistics
@@ -209,6 +221,7 @@ rtk init --global       # Add RTK to ~/.claude/CLAUDE.md
 | Files | ls, read, grep, find | 60-75% |
 | Infrastructure | docker, kubectl | 85% |
 | Network | curl, wget | 65-70% |
+| Ethereum | cast receipt, tx, run, logs, block | 58-97% |
 
 Overall average: **60-90% token reduction** on common development operations.
 <!-- /rtk-instructions -->
@@ -2619,6 +2632,8 @@ git log -10                rtk git log -10
 cargo test                 rtk cargo test
 docker ps                  rtk docker ps
 kubectl get pods           rtk kubectl pods
+cast receipt 0x...         rtk cast receipt 0x...
+cast run 0x...             rtk cast run 0x...
 ```
 
 ## Meta commands (use directly)
@@ -2690,6 +2705,7 @@ mod tests {
             "rtk git",
             "rtk docker",
             "rtk kubectl",
+            "rtk cast",
         ] {
             assert!(
                 RTK_INSTRUCTIONS.contains(cmd),

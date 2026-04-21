@@ -13,6 +13,8 @@ rtk git status
 rtk cargo test
 rtk npm run build
 rtk pytest -q
+rtk cast receipt <tx>     # Foundry cast with compact output
+rtk cast run <tx>         # Collapsed transaction trace
 ```
 
 ## Meta Commands

@@ -381,6 +381,21 @@ pub const RULES: &[RtkRule] = &[
         subcmd_status: &[],
     },
     RtkRule {
+        pattern: r"^cast\s+(receipt|tx|run|logs|block)",
+        rtk_cmd: "rtk cast",
+        rewrite_prefixes: &["cast"],
+        category: "Ethereum",
+        savings_pct: 75.0,
+        subcmd_savings: &[
+            ("receipt", 81.0),
+            ("tx", 64.0),
+            ("run", 58.0),
+            ("logs", 75.0),
+            ("block", 93.0),
+        ],
+        subcmd_status: &[],
+    },
+    RtkRule {
         pattern: r"^tree(\s|$)",
         rtk_cmd: "rtk tree",
         rewrite_prefixes: &["tree"],
