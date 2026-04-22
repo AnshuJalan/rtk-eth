@@ -176,6 +176,8 @@
    END OF TERMS AND CONDITIONS
 
    Copyright 2024 rtk-ai and rtk-ai Labs
+   Copyright 2026 Anshu Jalan (modifications — research fork "rtk-eth" adding
+   Ethereum / Foundry `cast` filters; not affiliated with rtk-ai)
 
    Licensed under the Apache License, Version 2.0 (the "License");
    you may not use this file except in compliance with the License.

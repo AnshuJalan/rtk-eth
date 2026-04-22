@@ -2,14 +2,18 @@
 name = "rtk"
 version = "0.37.2"
 edition = "2021"
-authors = ["Patrick Szymkowiak"]
-description = "Rust Token Killer - High-performance CLI proxy to minimize LLM token consumption"
-license = "MIT"
-homepage = "https://www.rtk-ai.app"
-repository = "https://github.com/rtk-ai/rtk"
+authors = [
+    "Patrick Szymkowiak",
+    "Anshu Jalan <anshu.jalan@nethermind.io>",
+]
+description = "Rust Token Killer - High-performance CLI proxy to minimize LLM token consumption (research fork with Ethereum / Foundry cast filters)"
+license = "Apache-2.0"
+homepage = "https://github.com/AnshuJalan/rtk-eth"
+repository = "https://github.com/AnshuJalan/rtk-eth"
 readme = "README.md"
 keywords = ["cli", "llm", "token", "filter", "productivity"]
 categories = ["command-line-utilities", "development-tools"]
+publish = false
 
 [dependencies]
 clap = { version = "4", features = ["derive"] }

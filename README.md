@@ -39,7 +39,7 @@ rtk filters and compresses command outputs before they reach your LLM context. S
 
 ## Fork notice — Ethereum / Foundry `cast` support
 
-> **EXPERIMENTAL.** This is a fork of the upstream [rtk-ai/rtk](https://github.com/rtk-ai/rtk). It is not affiliated with upstream and may lag behind on releases. Use at your own risk; expect breakage around Foundry output format changes.
+> **EXPERIMENTAL — research fork.** This is a non-commercial research fork of the upstream [rtk-ai/rtk](https://github.com/rtk-ai/rtk), maintained for exploring token-compression on Ethereum / Foundry tooling. It is **not affiliated with or endorsed by rtk-ai**, is not published to crates.io, and the installed binary is still named `rtk`. The repo is renamed to `rtk-eth` only for brevity. Licensed under Apache-2.0 (same as upstream); see [LICENSE](LICENSE) for preserved upstream copyright and fork modification notice. Use at your own risk; expect breakage around Foundry output format changes.
 
 This fork adds **six filters for Foundry's `cast` CLI**, compressing verbose Ethereum RPC output into scannable summaries.
 
@@ -67,15 +67,15 @@ rtk telemetry disable                  # Withdraw consent
 export RTK_TELEMETRY_DISABLED=1        # Hard override, blocks all collection
 ```
 
-Installing from source via `cargo install --git https://github.com/AnshuJalan/rtk` without the upstream `RTK_TELEMETRY_URL` set at build time also effectively disables telemetry, but setting `RTK_TELEMETRY_DISABLED=1` is the belt-and-suspenders option.
+Installing from source via `cargo install --git https://github.com/AnshuJalan/rtk-eth` without the upstream `RTK_TELEMETRY_URL` set at build time also effectively disables telemetry, but setting `RTK_TELEMETRY_DISABLED=1` is the belt-and-suspenders option.
 
 ### Install this fork
 
 ```bash
-cargo install --git https://github.com/AnshuJalan/rtk --force
+cargo install --git https://github.com/AnshuJalan/rtk-eth --force
 ```
 
-Issues and PRs for cast-specific behaviour: [AnshuJalan/rtk/issues](https://github.com/AnshuJalan/rtk/issues). For everything else, use [upstream](https://github.com/rtk-ai/rtk).
+Issues and PRs for cast-specific behaviour: [AnshuJalan/rtk-eth/issues](https://github.com/AnshuJalan/rtk-eth/issues). For everything else, use [upstream](https://github.com/rtk-ai/rtk).
 
 ---
 
