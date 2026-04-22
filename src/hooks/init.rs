@@ -198,7 +198,7 @@ rtk cast block <id>         # Drop logsBloom/mixHash, compact tx list — mainne
 rtk cast block <id> --full  # Per-tx one-liner with selector decoded via `cast 4byte` — mainnet 89–95%
 ```
 
-Note: `--json`, `--raw`, `-vvvv` flags and non-TTY stdout trigger passthrough (no filtering), so JSON integrations and deep debug traces are never truncated.
+Note: passthrough (no filtering) is triggered by `--json`/`-j`, `--md`, `--raw`/`--rawbytes`, and `-vvvv`+ — i.e. explicit caller opt-outs where the user wants machine-readable or maximum-detail output. Pipe/TTY detection is NOT used; filtering applies uniformly when none of those flags are present.
 
 ### Meta Commands
 ```bash
